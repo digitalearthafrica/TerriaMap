@@ -1,0 +1,61 @@
+name: Build and Push Docker Image
+
+# Build the TerriaMap image and push it to DockerHub.
+# Matches the DEA convention (deafrica-scripts / config): CI publishes to
+# DockerHub and the dea-ecr-sync Lambda mirrors the image into ECR, which
+# Flux then scans. We do NOT push to ECR directly from CI.
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ${{ vars.DOCKER_ORG_NAME || 'digitalearthafrica' }}/terriamap
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DEAFRICA_DOCKER_USERNAME }}
+          password: ${{ secrets.DEAFRICA_DOCKER_PASSWORD }}
+
+      - name: Docker metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
