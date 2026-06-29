@@ -44,9 +44,12 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
+            # Versioned tags come from the git tag of a published GitHub Release
+            # (release v1.0.0 -> 1.0.0 and 1.0).
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
-            type=semver,pattern={{version}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
